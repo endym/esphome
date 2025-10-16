@@ -646,7 +646,7 @@ Max6921DisplayText::Max6921DisplayText() {
  * @param duration_ms text display time in [ms]
  */
 void Max6921DisplayText::set_duration(uint32_t duration_ms) {
-  ESP_LOGD(TAG, "Set text duration: %" PRIu32 "ms", duration_ms);
+  ESP_LOGV(TAG, "Set text duration: %" PRIu32 "ms", duration_ms);
   this->duration_ms = duration_ms;
 }
 
@@ -704,7 +704,7 @@ int Max6921DisplayText::set_text(uint start_pos, uint max_pos, const std::string
   this->visible_idx = 0;
   this->visible_len = std::min(strlen(this->text), this->max_pos - this->start_pos + 1);
 
-  ESP_LOGD(TAG, "Set text: start-pos=%u, vi-idx=%u, vi-len=%u, text=%s", this->start_pos, this->visible_idx,
+  ESP_LOGV(TAG, "Set text: start-pos=%u, vi-idx=%u, vi-len=%u, text=%s", this->start_pos, this->visible_idx,
            this->visible_len, this->text);
 
   return strlen(this->text);
@@ -762,7 +762,7 @@ void Max6921DisplayText::set_text_align(TextAlignT align) {
   }
   this->align = align;
   this->init_text_align_();
-  ESP_LOGD(TAG, "Set text align: align=%i, start-pos=%u, max-pos=%u, vi-idx=%u, vi-len=%u", this->align,
+  ESP_LOGV(TAG, "Set text align: align=%i, start-pos=%u, max-pos=%u, vi-idx=%u, vi-len=%u", this->align,
            this->start_pos, this->max_pos, this->visible_idx, this->visible_len);
 }
 
@@ -816,7 +816,7 @@ void Max6921DisplayText::set_text_effect(TextEffectT effect, uint8_t cycle_num, 
       break;
   }
   this->init_text_effect_();
-  ESP_LOGD(TAG,
+  ESP_LOGV(TAG,
            "Set text effect: effect=%i, cycles=%u, upd-interval=%" PRIu32 "ms, start-pos=%u, "
            "max-pos=%u, vi-idx=%u, vi-len=%u",
            this->effect, this->cycle_num, this->update_interval_ms, this->start_pos, this->max_pos, this->visible_idx,
