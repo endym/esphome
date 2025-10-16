@@ -5,6 +5,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "display.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "max6921.h"
 
 namespace esphome {
@@ -169,7 +171,7 @@ void Max6921Display::setup(std::vector<uint8_t> &seg_to_out_map, std::vector<uin
 }
 
 void HOT Max6921Display::display_refresh_task(void *pv) {
-  Max6921Display *display = (Max6921Display *) pv;
+  Max6921Display *display = (Max6921Display *)pv;
   static uint count = display->num_digits_;
   static uint current_pos = 1;
 
@@ -179,6 +181,7 @@ void HOT Max6921Display::display_refresh_task(void *pv) {
   }
 
   while (true) {
+    #if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE)
     // one-time verbose output for all positions after any content change...
     if (display->disp_text_.content_changed) {
       count = 0;
@@ -190,15 +193,22 @@ void HOT Max6921Display::display_refresh_task(void *pv) {
                 display->out_buf_[(current_pos - 1) * 3], display->out_buf_[(current_pos - 1) * 3 + 1],
                 display->out_buf_[(current_pos - 1) * 3 + 2]);
     }
+    #endif
 
     // write MAX9621 data of current display position...
     display->max6921_->write_data(&display->out_buf_[(current_pos - 1) * 3], 3);
 
     // next display position...
-    if (++current_pos > display->num_digits_)
+    if (++current_pos > display->num_digits_) {
       current_pos = 1;
-
-    delayMicroseconds(display->refresh_period_us_);
+      // Instead of expensive calculation to get the right display refresh period
+      // (refresh period - duration of refresh code = remaining delay) always do
+      // the fastest possible refresh.
+      taskYIELD();
+      // Otherwise a FreeRTOS-friendly sleep should be use to avoid starving the
+      // scheduler and triggering the Task Watchdog:
+      // vTaskDelay(pdMS_TO_TICKS((display->refresh_period_us_ - <code execution time>) / 1000))
+    }
   }
 }
 
