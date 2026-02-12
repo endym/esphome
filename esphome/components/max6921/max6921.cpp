@@ -49,12 +49,11 @@ void HOT MAX6921Component::write_data(uint8_t *ptr, size_t length) {
   static bool first_call_logged = false;
 
   assert(length == 3);
-  memcpy(data, ptr, sizeof(data));  // make copy of data, because transfer buffer will be overwritten with SPI answer
   if (!first_call_logged)
     ESP_LOGVV(TAG, "SPI(%u): 0x%02x%02x%02x", length, data[0], data[1], data[2]);
   first_call_logged = true;
   this->disable_load_();  // set LOAD to low to disable update of output latch during data transfer
-  this->transfer_array(data, sizeof(data));
+  this->write_array(ptr, length);
   this->enable_load_();  // set LOAD to high to update the output latch (transparent to the shift register)
 }
 
