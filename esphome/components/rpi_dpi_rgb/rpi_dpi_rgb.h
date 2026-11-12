@@ -14,18 +14,16 @@
 
 #include "esp_lcd_panel_rgb.h"
 
-namespace esphome {
-namespace rpi_dpi_rgb {
+namespace esphome::rpi_dpi_rgb {
 
-constexpr static const char *const TAG = "rpi_dpi_rgb";
+ESPHOME_LOG_TAG(TAG, "rpi_dpi_rgb");
 
-class RpiDpiRgb : public display::Display {
+class RpiDpiRgb final : public display::Display {
  public:
   void update() override { this->do_update_(); }
   void setup() override;
   void loop() override;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void draw_pixel_at(int x, int y, Color color) override;
 
   display::ColorOrder get_color_mode() { return this->color_mode_; }
@@ -44,8 +42,8 @@ class RpiDpiRgb : public display::Display {
     this->width_ = width;
     this->height_ = height;
   }
-  int get_width() override { return this->width_; }
-  int get_height() override { return this->height_; }
+  int get_width() override;
+  int get_height() override;
   void set_hsync_back_porch(uint16_t hsync_back_porch) { this->hsync_back_porch_ = hsync_back_porch; }
   void set_hsync_front_porch(uint16_t hsync_front_porch) { this->hsync_front_porch_ = hsync_front_porch; }
   void set_hsync_pulse_width(uint16_t hsync_pulse_width) { this->hsync_pulse_width_ = hsync_pulse_width; }
@@ -62,6 +60,11 @@ class RpiDpiRgb : public display::Display {
   void dump_config() override;
 
  protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
+  void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
+                         int x_pad);
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
   void reset_display_() const;
@@ -91,6 +94,5 @@ class RpiDpiRgb : public display::Display {
   esp_lcd_panel_handle_t handle_{};
 };
 
-}  // namespace rpi_dpi_rgb
-}  // namespace esphome
+}  // namespace esphome::rpi_dpi_rgb
 #endif  // USE_ESP32_VARIANT_ESP32S3

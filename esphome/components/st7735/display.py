@@ -1,20 +1,25 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
+import logging
+
 from esphome import pins
-from esphome.components import spi
-from esphome.components import display
+import esphome.codegen as cg
+from esphome.components import display, spi
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DC_PIN,
     CONF_ID,
+    CONF_INVERT_COLORS,
     CONF_LAMBDA,
     CONF_MODEL,
-    CONF_RESET_PIN,
     CONF_PAGES,
-    CONF_INVERT_COLORS,
+    CONF_RESET_PIN,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
+
 from . import st7735_ns
 
 CODEOWNERS = ["@SenexCrenshaw"]
+LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["spi"]
 
@@ -68,7 +73,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def setup_st7735(var, config):
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
+    "st7735", require_miso=False, require_mosi=True
+)
+
+
+async def setup_st7735(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
     if CONF_RESET_PIN in config:
@@ -81,7 +91,12 @@ async def setup_st7735(var, config):
         cg.add(var.set_writer(lambda_))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
+    # Remove before 2027.5.0
+    LOGGER.warning(
+        "The 'st7735' component is deprecated and will be removed in ESPHome 2027.5.0, "
+        "migrate to 'mipi_spi' instead."
+    )
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_MODEL],
@@ -94,7 +109,7 @@ async def to_code(config):
         config[CONF_INVERT_COLORS],
     )
     await setup_st7735(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))

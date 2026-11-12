@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CO2,
     CONF_ID,
@@ -8,9 +8,10 @@ from esphome.const import (
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
     UNIT_PARTS_PER_BILLION,
+    UNIT_PARTS_PER_MILLION,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@yozik04"]
@@ -42,16 +43,12 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if co2_config := config.get(CONF_CO2):
-        sens = await sensor.new_sensor(co2_config)
-        cg.add(var.set_co2(sens))
-
-    if tvoc_config := config.get(CONF_TVOC):
-        sens = await sensor.new_sensor(tvoc_config)
-        cg.add(var.set_tvoc(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
+    await sensors(CONF_TVOC, var.set_tvoc_sensor)
 
     await i2c.register_i2c_device(var, config)

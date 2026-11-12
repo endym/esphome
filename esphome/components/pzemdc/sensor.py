@@ -1,13 +1,13 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.components import sensor, modbus
+import esphome.codegen as cg
+from esphome.components import modbus, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CURRENT,
+    CONF_ENERGY,
     CONF_ID,
     CONF_POWER,
-    CONF_ENERGY,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
@@ -15,19 +15,17 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_VOLT,
     UNIT_AMPERE,
-    UNIT_WATT,
     UNIT_KILOWATT_HOURS,
+    UNIT_VOLT,
+    UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["modbus"]
 
 pzemdc_ns = cg.esphome_ns.namespace("pzemdc")
-PZEMDC = pzemdc_ns.class_("PZEMDC", cg.PollingComponent, modbus.ModbusDevice)
-
-# Actions
-ResetEnergyAction = pzemdc_ns.class_("ResetEnergyAction", automation.Action)
+PZEMDC = pzemdc_ns.class_("PZEMDC", cg.PollingComponent, modbus.ModbusClientDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -64,38 +62,29 @@ CONFIG_SCHEMA = (
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "pzemdc.reset_energy",
-    ResetEnergyAction,
     maybe_simple_id(
         {
             cv.GenerateID(CONF_ID): cv.use_id(PZEMDC),
         }
     ),
+    automation.ApplyCall("reset_energy()"),
 )
-async def reset_energy_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await modbus.register_modbus_device(var, config)
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("pzemdc", role="client")(config)
 
-    if CONF_VOLTAGE in config:
-        conf = config[CONF_VOLTAGE]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_voltage_sensor(sens))
-    if CONF_CURRENT in config:
-        conf = config[CONF_CURRENT]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_current_sensor(sens))
-    if CONF_POWER in config:
-        conf = config[CONF_POWER]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_power_sensor(sens))
-    if CONF_ENERGY in config:
-        conf = config[CONF_ENERGY]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_energy_sensor(sens))
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await modbus.new_modbus_client_component(config)
+
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_ENERGY, var.set_energy_sensor)

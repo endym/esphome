@@ -1,12 +1,14 @@
 from esphome import automation
-from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
+from esphome.components import audio, audio_dac
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_ID
+from esphome.const import CONF_AUDIO_DAC, CONF_DATA, CONF_ID, CONF_VOLUME
 from esphome.core import CORE
-from esphome.coroutine import coroutine_with_priority
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 
-CODEOWNERS = ["@jesserockz"]
+AUTO_LOAD = ["audio"]
+CODEOWNERS = ["@jesserockz", "@kahrendt"]
+DOMAIN = "speaker"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -14,22 +16,25 @@ speaker_ns = cg.esphome_ns.namespace("speaker")
 
 Speaker = speaker_ns.class_("Speaker")
 
-PlayAction = speaker_ns.class_(
-    "PlayAction", automation.Action, cg.Parented.template(Speaker)
-)
-StopAction = speaker_ns.class_(
-    "StopAction", automation.Action, cg.Parented.template(Speaker)
-)
-FinishAction = speaker_ns.class_(
-    "FinishAction", automation.Action, cg.Parented.template(Speaker)
-)
 
-IsPlayingCondition = speaker_ns.class_("IsPlayingCondition", automation.Condition)
-IsStoppedCondition = speaker_ns.class_("IsStoppedCondition", automation.Condition)
+def get_audio_dac_ids(config):
+    """Return the audio DAC ids of a speaker config: none, the single id, or the list."""
+    audio_dac_ids = config.get(CONF_AUDIO_DAC)
+    if audio_dac_ids is None:
+        return []
+    return audio_dac_ids if isinstance(audio_dac_ids, list) else [audio_dac_ids]
 
 
 async def setup_speaker_core_(var, config):
-    pass
+    if audio_dacs := get_audio_dac_ids(config):
+        dacs = [await cg.get_variable(dac_id) for dac_id in audio_dacs]
+        table = cg.shared_progmem_array(
+            "speaker_audio_dacs",
+            audio_dac.AudioDac.operator("ptr"),
+            cg.ArrayInitializer(*dacs),
+            constexpr=False,
+        )
+        cg.add(var.set_audio_dacs(table, len(dacs)))
 
 
 async def register_speaker(var, config):
@@ -38,21 +43,36 @@ async def register_speaker(var, config):
     await setup_speaker_core_(var, config)
 
 
-SPEAKER_SCHEMA = cv.Schema({})
+def _unique_audio_dacs(value):
+    # a repeated DAC would get every volume, mute and audio start write twice
+    if len(set(value)) != len(value):
+        raise cv.Invalid("Each audio_dac can only be listed once")
+    return value
 
 
-SPEAKER_AUTOMATION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(Speaker)})
+SPEAKER_SCHEMA = cv.Schema.extend(audio.AUDIO_COMPONENT_SCHEMA).extend(
+    {
+        # one id as before (kept as a single value), or a list of DACs fed by this speaker's audio output that all
+        # get the same volume and mute
+        # the list comes first so a bad list reports its own error
+        cv.Optional(CONF_AUDIO_DAC): cv.Any(
+            cv.All(
+                [cv.use_id(audio_dac.AudioDac)],
+                cv.Length(min=1),
+                _unique_audio_dacs,
+            ),
+            cv.use_id(audio_dac.AudioDac),
+        ),
+    }
+)
+
+SPEAKER_AUTOMATION_SCHEMA = automation.maybe_simple_id(
+    {cv.GenerateID(): cv.use_id(Speaker)}
+)
 
 
-async def speaker_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
+automation.register_apply_action(
     "speaker.play",
-    PlayAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(Speaker),
@@ -60,37 +80,42 @@ async def speaker_action(config, action_id, template_arg, args):
         },
         key=CONF_DATA,
     ),
-)
-async def speaker_play_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    data = config[CONF_DATA]
-
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        cg.add(var.set_data_static(data))
-    return var
-
-
-automation.register_action("speaker.stop", StopAction, SPEAKER_AUTOMATION_SCHEMA)(
-    speaker_action
-)
-automation.register_action("speaker.finish", FinishAction, SPEAKER_AUTOMATION_SCHEMA)(
-    speaker_action
+    automation.ApplyBytes(CONF_DATA, "play({})"),
 )
 
-automation.register_condition(
-    "speaker.is_playing", IsPlayingCondition, SPEAKER_AUTOMATION_SCHEMA
-)(speaker_action)
 
-automation.register_condition(
-    "speaker.is_stopped", IsStoppedCondition, SPEAKER_AUTOMATION_SCHEMA
-)(speaker_action)
+for _name, _call in (
+    ("speaker.stop", "stop()"),
+    ("speaker.finish", "finish()"),
+    ("speaker.mute_on", "set_mute_state(true)"),
+    ("speaker.mute_off", "set_mute_state(false)"),
+):
+    automation.register_apply_action(
+        _name, SPEAKER_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
+    )
+
+automation.register_apply_condition(
+    "speaker.is_playing", SPEAKER_AUTOMATION_SCHEMA, "is_running()"
+)
+automation.register_apply_condition(
+    "speaker.is_stopped", SPEAKER_AUTOMATION_SCHEMA, "is_stopped()"
+)
 
 
-@coroutine_with_priority(100.0)
+automation.register_apply_action(
+    "speaker.volume_set",
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(Speaker),
+            cv.Required(CONF_VOLUME): cv.templatable(cv.percentage),
+        },
+        key=CONF_VOLUME,
+    ),
+    automation.ApplyField(CONF_VOLUME, "set_volume", cg.float_),
+)
+
+
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(speaker_ns.using)
     cg.add_define("USE_SPEAKER")

@@ -1,14 +1,11 @@
+from esphome import automation
+import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_STATE
 
-from .. import nextion_ns, CONF_NEXTION_ID
-
-from ..base_component import (
-    setup_component_core_,
-    CONFIG_TEXT_COMPONENT_SCHEMA,
-)
+from .. import CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION, nextion_ns
+from ..base_component import CONFIG_TEXT_COMPONENT_SCHEMA, setup_component_core_
 
 CODEOWNERS = ["@senexcrenshaw"]
 
@@ -32,3 +29,26 @@ async def to_code(config):
     cg.add(hub.register_textsensor_component(var))
 
     await setup_component_core_(var, config, ".txt")
+
+
+automation.register_apply_action(
+    "text_sensor.nextion.publish",
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(NextionTextSensor),
+            cv.Required(CONF_STATE): cv.templatable(cv.string_strict),
+            cv.Optional(CONF_PUBLISH_STATE, default="true"): cv.templatable(cv.boolean),
+            cv.Optional(CONF_SEND_TO_NEXTION, default="true"): cv.templatable(
+                cv.boolean
+            ),
+        }
+    ),
+    automation.ApplyCall(
+        "set_state({}, {}, {})",
+        (
+            (CONF_STATE, cg.std_string),
+            (CONF_PUBLISH_STATE, cg.bool_),
+            (CONF_SEND_TO_NEXTION, cg.bool_),
+        ),
+    ),
+)

@@ -1,22 +1,21 @@
 #include "mopeka_pro_check.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
+namespace esphome::mopeka_pro_check {
 
-namespace esphome {
-namespace mopeka_pro_check {
-
-static const char *const TAG = "mopeka_pro_check";
+ESPHOME_LOG_TAG(TAG, "mopeka_pro_check");
 static const uint8_t MANUFACTURER_DATA_LENGTH = 10;
 static const uint16_t MANUFACTURER_ID = 0x0059;
 static const double MOPEKA_LPG_COEF[] = {0.573045, -0.002822, -0.00000535};  // Magic numbers provided by Mopeka
 
 void MopekaProCheck::dump_config() {
   ESP_LOGCONFIG(TAG, "Mopeka Pro Check");
-  LOG_SENSOR("  ", "Level", this->level_);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
-  LOG_SENSOR("  ", "Reading Distance", this->distance_);
+  LOG_SENSOR("  ", "Level", this->level_sensor_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
+  LOG_SENSOR("  ", "Reading Distance", this->distance_sensor_);
+  LOG_SENSOR("  ", "Read Quality", this->signal_quality_sensor_);
+  LOG_SENSOR("  ", "Ignored Reads", this->ignored_reads_sensor_);
 }
 
 /**
@@ -24,12 +23,13 @@ void MopekaProCheck::dump_config() {
  * Check if advertisement is for our sensor and if so decode it and
  * update the sensor state data.
  */
-bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool MopekaProCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     return false;
   }
 
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str_to(addr_buf));
 
   const auto &manu_datas = device.get_manufacturer_datas();
 
@@ -61,47 +61,50 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   }
 
   // Get battery level first
-  if (this->battery_level_ != nullptr) {
-    uint8_t level = this->parse_battery_level_(manu_data.data);
-    this->battery_level_->publish_state(level);
+  PUBLISH_STATE(this->battery_level_sensor_, this->parse_battery_level_(manu_data.data));
+
+  // Get the quality value
+  SensorReadQuality quality_value = this->parse_read_quality_(manu_data.data);
+  PUBLISH_STATE(this->signal_quality_sensor_, static_cast<int>(quality_value));
+
+  // Determine if we have a good enough quality of read to report level and distance
+  // sensors.  This sensor is reported regardless of distance or level sensors being enabled
+  if (quality_value < this->min_signal_quality_) {
+    ESP_LOGW(TAG, "Read Quality too low to report distance or level");
+    this->ignored_read_count_++;
+  } else {
+    // reset to zero since read quality was sufficient
+    this->ignored_read_count_ = 0;
   }
+  // Report number of contiguous ignored reads if sensor defined
+  PUBLISH_STATE(this->ignored_reads_sensor_, this->ignored_read_count_);
 
   // Get distance and level if either are sensors
-  if ((this->distance_ != nullptr) || (this->level_ != nullptr)) {
+  if ((this->distance_sensor_ != nullptr) || (this->level_sensor_ != nullptr)) {
     uint32_t distance_value = this->parse_distance_(manu_data.data);
-    SensorReadQuality quality_value = this->parse_read_quality_(manu_data.data);
     ESP_LOGD(TAG, "Distance Sensor: Quality (0x%X) Distance (%" PRId32 "mm)", quality_value, distance_value);
-    if (quality_value < QUALITY_HIGH) {
-      ESP_LOGW(TAG, "Poor read quality.");
-    }
-    if (quality_value < QUALITY_MED) {
-      // if really bad reading set to 0
-      ESP_LOGW(TAG, "Setting distance to 0");
-      distance_value = 0;
-    }
 
-    // update distance sensor
-    if (this->distance_ != nullptr) {
-      this->distance_->publish_state(distance_value);
-    }
+    // only update distance and level sensors if read quality was sufficient.  This can be determined by
+    // if the ignored_read_count is zero.
+    if (this->ignored_read_count_ == 0) {
+      // update distance sensor
+      PUBLISH_STATE(this->distance_sensor_, distance_value);
 
-    // update level sensor
-    if (this->level_ != nullptr) {
-      uint8_t tank_level = 0;
-      if (distance_value >= this->full_mm_) {
-        tank_level = 100;  // cap at 100%
-      } else if (distance_value > this->empty_mm_) {
-        tank_level = ((100.0f / (this->full_mm_ - this->empty_mm_)) * (distance_value - this->empty_mm_));
+      // update level sensor
+      if (this->level_sensor_ != nullptr) {
+        uint8_t tank_level = 0;
+        if (distance_value >= this->full_mm_) {
+          tank_level = 100;  // cap at 100%
+        } else if (distance_value > this->empty_mm_) {
+          tank_level = ((100.0f / (this->full_mm_ - this->empty_mm_)) * (distance_value - this->empty_mm_));
+        }
+        this->level_sensor_->publish_state(tank_level);
       }
-      this->level_->publish_state(tank_level);
     }
   }
 
   // Get temperature of sensor
-  if (this->temperature_ != nullptr) {
-    uint8_t temp_in_c = this->parse_temperature_(manu_data.data);
-    this->temperature_->publish_state(temp_in_c);
-  }
+  PUBLISH_STATE(this->temperature_sensor_, this->parse_temperature_(manu_data.data));
 
   return true;
 }
@@ -128,13 +131,12 @@ uint32_t MopekaProCheck::parse_distance_(const std::vector<uint8_t> &message) {
                      (MOPEKA_LPG_COEF[0] + MOPEKA_LPG_COEF[1] * raw_t + MOPEKA_LPG_COEF[2] * raw_t * raw_t));
 }
 
-uint8_t MopekaProCheck::parse_temperature_(const std::vector<uint8_t> &message) { return (message[2] & 0x7F) - 40; }
+int8_t MopekaProCheck::parse_temperature_(const std::vector<uint8_t> &message) { return (message[2] & 0x7F) - 40; }
 
 SensorReadQuality MopekaProCheck::parse_read_quality_(const std::vector<uint8_t> &message) {
+  // Since a 8 bit value is being shifted and truncated to 2 bits all possible values are defined as enumeration
+  //  value and the static cast is safe.
   return static_cast<SensorReadQuality>(message[4] >> 6);
 }
 
-}  // namespace mopeka_pro_check
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::mopeka_pro_check

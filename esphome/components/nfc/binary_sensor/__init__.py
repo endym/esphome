@@ -1,9 +1,13 @@
+from typing import Any
+
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_UID
 from esphome.core import HexInt
-from .. import nfc_ns, Nfcc, NfcTagListener
+from esphome.types import ConfigType
+
+from .. import Nfcc, NfcTagListener, nfc_ns
 
 DEPENDENCIES = ["nfc"]
 
@@ -16,17 +20,15 @@ NfcTagBinarySensor = nfc_ns.class_(
     binary_sensor.BinarySensor,
     cg.Component,
     NfcTagListener,
-    cg.Parented.template(Nfcc),
 )
 
 
-def validate_uid(value):
+def validate_uid(value: Any) -> str:
     value = cv.string_strict(value)
     for x in value.split("-"):
         if len(x) != 2:
             raise cv.Invalid(
-                "Each part (separated by '-') of the UID must be two characters "
-                "long."
+                "Each part (separated by '-') of the UID must be two characters long."
             )
         try:
             x = int(x, 16)
@@ -56,15 +58,17 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+_request_listener_slot = cg.slot_counter("NFC_TAG_LISTENER_COUNT")
+
+
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
-    await cg.register_parented(var, config[CONF_NFCC_ID])
 
     hub = await cg.get_variable(config[CONF_NFCC_ID])
+    _request_listener_slot(str(hub))
     cg.add(hub.register_listener(var))
-    if CONF_NDEF_CONTAINS in config:
-        cg.add(var.set_ndef_match_string(config[CONF_NDEF_CONTAINS]))
+    cg.add_optional(var.set_ndef_match_string, config.get(CONF_NDEF_CONTAINS))
     if CONF_TAG_ID in config:
         cg.add(var.set_tag_name(config[CONF_TAG_ID]))
     elif CONF_UID in config:

@@ -1,31 +1,31 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, uart
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_CO2,
     CONF_FORMALDEHYDE,
-    CONF_TVOC,
+    CONF_HUMIDITY,
     CONF_PM_2_5,
     CONF_PM_10_0,
     CONF_TEMPERATURE,
-    CONF_HUMIDITY,
+    CONF_TVOC,
     DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
-    DEVICE_CLASS_PM25,
-    DEVICE_CLASS_PM10,
-    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
-    ICON_MOLECULE_CO2,
-    ICON_FLASK,
+    DEVICE_CLASS_PM10,
+    DEVICE_CLASS_PM25,
+    DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     ICON_CHEMICAL_WEAPON,
+    ICON_FLASK,
     ICON_GRAIN,
+    ICON_MOLECULE_CO2,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_PARTS_PER_MILLION,
+    UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 
@@ -88,30 +88,19 @@ CONFIG_SCHEMA = cv.All(
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "sm300d2", baud_rate=9600, require_rx=True, data_bits=8, parity="NONE", stop_bits=1
+)
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
 
-    if CONF_CO2 in config:
-        sens = await sensor.new_sensor(config[CONF_CO2])
-        cg.add(var.set_co2_sensor(sens))
-    if CONF_FORMALDEHYDE in config:
-        sens = await sensor.new_sensor(config[CONF_FORMALDEHYDE])
-        cg.add(var.set_formaldehyde_sensor(sens))
-    if CONF_TVOC in config:
-        sens = await sensor.new_sensor(config[CONF_TVOC])
-        cg.add(var.set_tvoc_sensor(sens))
-    if CONF_PM_2_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_2_5])
-        cg.add(var.set_pm_2_5_sensor(sens))
-    if CONF_PM_10_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_10_0])
-        cg.add(var.set_pm_10_0_sensor(sens))
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
-        cg.add(var.set_humidity_sensor(sens))
+async def to_code(config: ConfigType) -> None:
+    var = await uart.new_uart_component(config)
+
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
+    await sensors(CONF_FORMALDEHYDE, var.set_formaldehyde_sensor)
+    await sensors(CONF_TVOC, var.set_tvoc_sensor)
+    await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)
+    await sensors(CONF_PM_10_0, var.set_pm_10_0_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)

@@ -1,10 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import (
-    DEVICE_CLASS_TIMESTAMP,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-)
+import esphome.config_validation as cv
+from esphome.const import DEVICE_CLASS_TIMESTAMP, ENTITY_CATEGORY_DIAGNOSTIC
 
 from . import CONF_WIREGUARD_ID, Wireguard
 
@@ -22,8 +19,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_WIREGUARD_ID])
+    hub = await cg.get_variable(config[CONF_WIREGUARD_ID])
 
-    if latest_handshake_config := config.get(CONF_LATEST_HANDSHAKE):
-        sens = await sensor.new_sensor(latest_handshake_config)
-        cg.add(parent.set_handshake_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_LATEST_HANDSHAKE, hub.set_handshake_sensor)

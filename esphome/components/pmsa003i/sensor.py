@@ -1,8 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_10_0,
@@ -10,14 +9,15 @@ from esphome.const import (
     CONF_PMC_1_0,
     CONF_PMC_2_5,
     CONF_PMC_10_0,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
-    ICON_CHEMICAL_WEAPON,
-    ICON_COUNTER,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
+    ICON_CHEMICAL_WEAPON,
+    ICON_COUNTER,
     STATE_CLASS_MEASUREMENT,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@sjtrny"]
 DEPENDENCIES = ["i2c"]
@@ -114,10 +114,8 @@ TYPES = {
 }
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_standard_units(config[CONF_STANDARD_UNITS]))
 

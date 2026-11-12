@@ -1,11 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    ENTITY_CATEGORY_NONE,
-    DEVICE_CLASS_RUNNING,
-    DEVICE_CLASS_EMPTY,
     CONF_ID,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_RUNNING,
+    ENTITY_CATEGORY_NONE,
 )
 
 from . import EzoPMP
@@ -31,12 +31,8 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_ID])
+    hub = await cg.get_variable(config[CONF_ID])
 
-    if CONF_PUMP_STATE in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_PUMP_STATE])
-        cg.add(parent.set_is_dosing(sens))
-
-    if CONF_IS_PAUSED in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_IS_PAUSED])
-        cg.add(parent.set_is_paused(sens))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_PUMP_STATE, hub.set_is_dosing_binary_sensor)
+    await binary_sensors(CONF_IS_PAUSED, hub.set_is_paused_binary_sensor)

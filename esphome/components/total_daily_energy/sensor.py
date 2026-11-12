@@ -1,39 +1,38 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, time
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACCURACY_DECIMALS,
     CONF_ICON,
     CONF_ID,
+    CONF_METHOD,
     CONF_RESTORE,
     CONF_TIME_ID,
-    DEVICE_CLASS_ENERGY,
-    CONF_METHOD,
-    STATE_CLASS_TOTAL_INCREASING,
     CONF_UNIT_OF_MEASUREMENT,
-    CONF_ACCURACY_DECIMALS,
+    DEVICE_CLASS_ENERGY,
+    STATE_CLASS_TOTAL_INCREASING,
 )
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["time"]
 
 CONF_POWER_ID = "power_id"
 total_daily_energy_ns = cg.esphome_ns.namespace("total_daily_energy")
 TotalDailyEnergyMethod = total_daily_energy_ns.enum("TotalDailyEnergyMethod")
-TOTAL_DAILY_ENERGY_METHODS = {
-    "trapezoid": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_TRAPEZOID,
-    "left": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_LEFT,
-    "right": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_RIGHT,
-}
+TOTAL_DAILY_ENERGY_METHODS = TotalDailyEnergyMethod.options(
+    "trapezoid", "left", "right", prefix="TOTAL_DAILY_ENERGY_METHOD_"
+)
 TotalDailyEnergy = total_daily_energy_ns.class_(
     "TotalDailyEnergy", sensor.Sensor, cg.Component
 )
 
 
-def inherit_unit_of_measurement(uom, config):
+def inherit_unit_of_measurement(uom: str, config: ConfigType) -> str:
     return uom + "h"
 
 
-def inherit_accuracy_decimals(decimals, config):
+def inherit_accuracy_decimals(decimals: int, config: ConfigType) -> int:
     return decimals + 2
 
 
@@ -80,13 +79,11 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    sens = await cg.get_variable(config[CONF_POWER_ID])
-    cg.add(var.set_parent(sens))
-    time_ = await cg.get_variable(config[CONF_TIME_ID])
-    cg.add(var.set_time(time_))
+    await cg.register_parented(var, config[CONF_POWER_ID])
+    await cg.add_variable(var.set_time, config[CONF_TIME_ID])
     cg.add(var.set_restore(config[CONF_RESTORE]))
     cg.add(var.set_method(config[CONF_METHOD]))

@@ -1,16 +1,17 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BUTTON,
+    CONF_ID,
     CONF_LIGHT,
     CONF_MOTION,
     CONF_TIMEOUT,
     DEVICE_CLASS_LIGHT,
     DEVICE_CLASS_MOTION,
-    CONF_ID,
-    CONF_BUTTON,
 )
 from esphome.core import TimePeriod
+from esphome.types import ConfigType
 
 from . import XiaomiRTCGQ02LM
 
@@ -45,19 +46,12 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
-    parent = await cg.get_variable(config[CONF_ID])
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_ID])
 
-    if CONF_MOTION in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_MOTION])
-        cg.add(parent.set_motion(sens))
-        cg.add(parent.set_motion_timeout(config[CONF_MOTION][CONF_TIMEOUT]))
-
-    if CONF_LIGHT in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_LIGHT])
-        cg.add(parent.set_light(sens))
-
-    if CONF_BUTTON in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_BUTTON])
-        cg.add(parent.set_button(sens))
-        cg.add(parent.set_button_timeout(config[CONF_BUTTON][CONF_TIMEOUT]))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    if await binary_sensors(CONF_MOTION, hub.set_motion_binary_sensor):
+        cg.add(hub.set_motion_timeout(config[CONF_MOTION][CONF_TIMEOUT]))
+    await binary_sensors(CONF_LIGHT, hub.set_light_binary_sensor)
+    if await binary_sensors(CONF_BUTTON, hub.set_button_binary_sensor):
+        cg.add(hub.set_button_timeout(config[CONF_BUTTON][CONF_TIMEOUT]))

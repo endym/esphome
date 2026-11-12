@@ -1,9 +1,9 @@
+import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import CONF_SENSOR_DATAPOINT
 
-from .. import tuya_ns, CONF_TUYA_ID, Tuya
+from .. import CONF_TUYA_ID, Tuya, tuya_ns
 
 DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@jesserockz"]
@@ -28,7 +28,6 @@ async def to_code(config):
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
 
-    paren = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(paren))
+    await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
 
     cg.add(var.set_sensor_id(config[CONF_SENSOR_DATAPOINT]))

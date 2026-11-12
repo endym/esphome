@@ -1,14 +1,15 @@
 import esphome.codegen as cg
+from esphome.components import output, sensor, voltage_sampler
 import esphome.config_validation as cv
-from esphome.components import sensor, voltage_sampler, output
 from esphome.const import (
-    CONF_SENSOR,
     CONF_OUTPUT,
+    CONF_SENSOR,
     DEVICE_CLASS_PM25,
+    ICON_CHEMICAL_WEAPON,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
-    ICON_CHEMICAL_WEAPON,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["output"]
 AUTO_LOAD = ["voltage_sampler"]
@@ -43,13 +44,12 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
     # the ADC sensor to read voltage from
-    adc_sensor = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_adc_source(adc_sensor))
+    await cg.add_variable(var.set_adc_source, config[CONF_SENSOR])
     cg.add(
         var.set_voltage_refs(
             config[CONF_ADC_VOLTAGE_OFFSET], config[CONF_ADC_VOLTAGE_MULTIPLIER]
@@ -57,5 +57,4 @@ async def to_code(config):
     )
 
     # the binary output to control the module's internal IR LED
-    led_output = await cg.get_variable(config[CONF_OUTPUT])
-    cg.add(var.set_led_output(led_output))
+    await cg.add_variable(var.set_led_output, config[CONF_OUTPUT])

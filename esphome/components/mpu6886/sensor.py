@@ -1,17 +1,17 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_TEMPERATURE,
     DEVICE_CLASS_TEMPERATURE,
     ICON_BRIEFCASE_DOWNLOAD,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_METER_PER_SECOND_SQUARED,
     ICON_SCREEN_ROTATION,
-    UNIT_DEGREE_PER_SECOND,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_DEGREE_PER_SECOND,
+    UNIT_METER_PER_SECOND_SQUARED,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@fabaff"]
 DEPENDENCIES = ["i2c"]
@@ -65,21 +65,14 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
-    for d in ["x", "y", "z"]:
-        accel_key = f"accel_{d}"
-        if accel_key in config:
-            sens = await sensor.new_sensor(config[accel_key])
-            cg.add(getattr(var, f"set_accel_{d}_sensor")(sens))
-        accel_key = f"gyro_{d}"
-        if accel_key in config:
-            sens = await sensor.new_sensor(config[accel_key])
-            cg.add(getattr(var, f"set_gyro_{d}_sensor")(sens))
-
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_ACCEL_X, var.set_accel_x_sensor)
+    await sensors(CONF_GYRO_X, var.set_gyro_x_sensor)
+    await sensors(CONF_ACCEL_Y, var.set_accel_y_sensor)
+    await sensors(CONF_GYRO_Y, var.set_gyro_y_sensor)
+    await sensors(CONF_ACCEL_Z, var.set_accel_z_sensor)
+    await sensors(CONF_GYRO_Z, var.set_gyro_z_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)

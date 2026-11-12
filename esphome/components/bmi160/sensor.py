@@ -1,27 +1,27 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    CONF_TEMPERATURE,
     CONF_ACCELERATION_X,
     CONF_ACCELERATION_Y,
     CONF_ACCELERATION_Z,
     CONF_GYROSCOPE_X,
     CONF_GYROSCOPE_Y,
     CONF_GYROSCOPE_Z,
+    CONF_TEMPERATURE,
     DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_METER_PER_SECOND_SQUARED,
     ICON_ACCELERATION_X,
     ICON_ACCELERATION_Y,
     ICON_ACCELERATION_Z,
     ICON_GYROSCOPE_X,
     ICON_GYROSCOPE_Y,
     ICON_GYROSCOPE_Z,
-    UNIT_DEGREE_PER_SECOND,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_DEGREE_PER_SECOND,
+    UNIT_METER_PER_SECOND_SQUARED,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -82,21 +82,14 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
-    for d in ["x", "y", "z"]:
-        accel_key = f"acceleration_{d}"
-        if accel_key in config:
-            sens = await sensor.new_sensor(config[accel_key])
-            cg.add(getattr(var, f"set_accel_{d}_sensor")(sens))
-        accel_key = f"gyroscope_{d}"
-        if accel_key in config:
-            sens = await sensor.new_sensor(config[accel_key])
-            cg.add(getattr(var, f"set_gyro_{d}_sensor")(sens))
-
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_ACCELERATION_X, var.set_accel_x_sensor)
+    await sensors(CONF_GYROSCOPE_X, var.set_gyro_x_sensor)
+    await sensors(CONF_ACCELERATION_Y, var.set_accel_y_sensor)
+    await sensors(CONF_GYROSCOPE_Y, var.set_gyro_y_sensor)
+    await sensors(CONF_ACCELERATION_Z, var.set_accel_z_sensor)
+    await sensors(CONF_GYROSCOPE_Z, var.set_gyro_z_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)

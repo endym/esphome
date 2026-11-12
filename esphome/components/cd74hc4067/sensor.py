@@ -1,16 +1,18 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    CONF_SENSOR,
     CONF_NUMBER,
-    ICON_FLASH,
-    UNIT_VOLT,
-    STATE_CLASS_MEASUREMENT,
+    CONF_SENSOR,
     DEVICE_CLASS_VOLTAGE,
+    ICON_FLASH,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_VOLT,
 )
-from . import cd74hc4067_ns, CD74HC4067Component
+from esphome.types import ConfigType
+
+from . import CD74HC4067Component, cd74hc4067_ns
 
 DEPENDENCIES = ["cd74hc4067"]
 
@@ -43,7 +45,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_CD74HC4067_ID])
 
     var = cg.new_Pvariable(config[CONF_ID], parent)
@@ -51,5 +53,4 @@ async def to_code(config):
     await cg.register_component(var, config)
     cg.add(var.set_pin(config[CONF_NUMBER]))
 
-    sens = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_source(sens))
+    await cg.add_variable(var.set_source, config[CONF_SENSOR])

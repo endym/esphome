@@ -1,11 +1,11 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import i2c, touchscreen
-from esphome.const import CONF_INTERRUPT_PIN, CONF_ID, CONF_RESET_PIN
-from .. import cst226_ns
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_RESET_PIN
+from esphome.types import ConfigType
 
+from .. import cst226_ns
 
 CST226Touchscreen = cst226_ns.class_(
     "CST226Touchscreen",
@@ -27,12 +27,10 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await touchscreen.register_touchscreen(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
-        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
-    if reset_pin := config.get(CONF_RESET_PIN):
-        cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin)))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))

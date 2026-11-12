@@ -2,10 +2,10 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace touchscreen {
+namespace esphome::touchscreen {
 
-static const char *const TAG = "touchscreen";
+ESPHOME_LOG_TAG(TAG, "touchscreen");
+static constexpr uint32_t TOUCH_TIMEOUT_ID = 0;
 
 void TouchscreenInterrupt::gpio_intr(TouchscreenInterrupt *store) { store->touched = true; }
 
@@ -13,13 +13,13 @@ void Touchscreen::attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::Int
   irq_pin->attach_interrupt(TouchscreenInterrupt::gpio_intr, &this->store_, type);
   this->store_.init = true;
   this->store_.touched = false;
-  ESP_LOGD(TAG, "Attach Touch Interupt");
+  ESP_LOGD(TAG, "Attach Touch Interrupt");
 }
 
 void Touchscreen::call_setup() {
   if (this->display_ != nullptr) {
-    this->display_width_ = this->display_->get_native_width();
-    this->display_height_ = this->display_->get_native_height();
+    this->display_width_ = this->display_->get_width();
+    this->display_height_ = this->display_->get_height();
   }
   PollingComponent::call_setup();
 }
@@ -50,21 +50,23 @@ void Touchscreen::loop() {
       tp.second.x_prev = tp.second.x;
       tp.second.y_prev = tp.second.y;
     }
+    // The interrupt flag must be reset BEFORE calling update_touches, otherwise we might miss an interrupt that was
+    // triggered while we were reading touch data.
+    this->store_.touched = false;
     this->update_touches();
     if (this->skip_update_) {
       for (auto &tp : this->touches_) {
         tp.second.state &= ~STATE_RELEASING;
       }
     } else {
-      this->store_.touched = false;
       this->defer([this]() { this->send_touches_(); });
       if (this->touch_timeout_ > 0) {
         // Simulate a touch after <this->touch_timeout_> ms. This will reset any existing timeout operation.
         // This is to detect touch release.
         if (this->is_touched_) {
-          this->set_timeout(TAG, this->touch_timeout_, [this]() { this->store_.touched = true; });
+          this->set_timeout(TOUCH_TIMEOUT_ID, this->touch_timeout_, [this]() { this->store_.touched = true; });
         } else {
-          this->cancel_timeout(TAG);
+          this->cancel_timeout(TOUCH_TIMEOUT_ID);
         }
       }
     }
@@ -74,7 +76,10 @@ void Touchscreen::loop() {
 void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_raw, int16_t z_raw) {
   TouchPoint tp;
   uint16_t x, y;
-  if (this->touches_.count(id) == 0) {
+  if (this->swap_x_y_) {
+    std::swap(x_raw, y_raw);
+  }
+  if (!this->touches_.contains(id)) {
     tp.state = STATE_PRESSED;
     tp.id = id;
   } else {
@@ -89,10 +94,6 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
   if (this->x_raw_max_ != this->x_raw_min_ and this->y_raw_max_ != this->y_raw_min_) {
     x = this->normalize_(x_raw, this->x_raw_min_, this->x_raw_max_, this->invert_x_);
     y = this->normalize_(y_raw, this->y_raw_min_, this->y_raw_max_, this->invert_y_);
-
-    if (this->swap_x_y_) {
-      std::swap(x, y);
-    }
 
     tp.x = (uint16_t) ((int) x * this->display_width_ / 0x1000);
     tp.y = (uint16_t) ((int) y * this->display_height_ / 0x1000);
@@ -161,5 +162,4 @@ int16_t Touchscreen::normalize_(int16_t val, int16_t min_val, int16_t max_val, b
   return ret;
 }
 
-}  // namespace touchscreen
-}  // namespace esphome
+}  // namespace esphome::touchscreen

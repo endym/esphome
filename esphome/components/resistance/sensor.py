@@ -1,32 +1,23 @@
 import esphome.codegen as cg
+from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, resistance_sampler
 from esphome.const import (
     CONF_REFERENCE_VOLTAGE,
     CONF_SENSOR,
+    ICON_FLASH,
     STATE_CLASS_MEASUREMENT,
     UNIT_OHM,
-    ICON_FLASH,
 )
-
-AUTO_LOAD = ["resistance_sampler"]
+from esphome.types import ConfigType
 
 resistance_ns = cg.esphome_ns.namespace("resistance")
-ResistanceSensor = resistance_ns.class_(
-    "ResistanceSensor",
-    cg.Component,
-    sensor.Sensor,
-    resistance_sampler.ResistanceSampler,
-)
+ResistanceSensor = resistance_ns.class_("ResistanceSensor", cg.Component, sensor.Sensor)
 
 CONF_CONFIGURATION = "configuration"
 CONF_RESISTOR = "resistor"
 
 ResistanceConfiguration = resistance_ns.enum("ResistanceConfiguration")
-CONFIGURATIONS = {
-    "DOWNSTREAM": ResistanceConfiguration.DOWNSTREAM,
-    "UPSTREAM": ResistanceConfiguration.UPSTREAM,
-}
+CONFIGURATIONS = ResistanceConfiguration.options("DOWNSTREAM", "UPSTREAM")
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -48,12 +39,11 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    sens = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_sensor(sens))
+    await cg.add_variable(var.set_source_sensor, config[CONF_SENSOR])
     cg.add(var.set_configuration(config[CONF_CONFIGURATION]))
     cg.add(var.set_resistor(config[CONF_RESISTOR]))
     cg.add(var.set_reference_voltage(config[CONF_REFERENCE_VOLTAGE]))

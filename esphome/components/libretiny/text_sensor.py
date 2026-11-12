@@ -1,13 +1,14 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+from esphome.components.const import CONF_LIBRETINY
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_VERSION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_CELLPHONE_ARROW_DOWN,
 )
 
-from .const import CONF_LIBRETINY, LTComponent
+from .const import LTComponent
 
 DEPENDENCIES = ["libretiny"]
 
@@ -24,8 +25,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    lt_component = await cg.get_variable(config[CONF_LIBRETINY])
+    hub = await cg.get_variable(config[CONF_LIBRETINY])
 
-    if CONF_VERSION in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_VERSION])
-        cg.add(lt_component.set_version_sensor(sens))
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_VERSION, hub.set_version_text_sensor)

@@ -1,10 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
-from esphome.const import (
-    CONF_ADDRESS,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ADDRESS, ENTITY_CATEGORY_DIAGNOSTIC
 
 from . import CONF_WIREGUARD_ID, Wireguard
 
@@ -19,8 +16,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_WIREGUARD_ID])
+    hub = await cg.get_variable(config[CONF_WIREGUARD_ID])
 
-    if address_config := config.get(CONF_ADDRESS):
-        sens = await text_sensor.new_text_sensor(address_config)
-        cg.add(parent.set_address_sensor(sens))
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_ADDRESS, hub.set_address_text_sensor)

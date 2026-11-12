@@ -1,8 +1,10 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
-from esphome.const import CONF_ID, CONF_PIN
+import esphome.codegen as cg
 from esphome.components.one_wire import OneWireBus
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_PIN
+from esphome.types import ConfigType
+
 from .. import gpio_ns
 
 CODEOWNERS = ["@ssieb"]
@@ -17,9 +19,8 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])

@@ -1,22 +1,27 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
+import logging
+from typing import Any
+
 from esphome import pins
-from esphome.components import display, spi, power_supply
+import esphome.codegen as cg
+from esphome.components import display, power_supply, spi
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BACKLIGHT_PIN,
+    CONF_CS_PIN,
     CONF_DC_PIN,
     CONF_HEIGHT,
     CONF_ID,
     CONF_LAMBDA,
     CONF_MODEL,
-    CONF_RESET_PIN,
-    CONF_WIDTH,
-    CONF_POWER_SUPPLY,
-    CONF_ROTATION,
-    CONF_CS_PIN,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
+    CONF_POWER_SUPPLY,
+    CONF_RESET_PIN,
+    CONF_ROTATION,
+    CONF_WIDTH,
 )
+from esphome.types import ConfigType
+
 from . import st7789v_ns
 
 CONF_EIGHTBITCOLOR = "eightbitcolor"
@@ -24,6 +29,8 @@ CONF_EIGHTBITCOLOR = "eightbitcolor"
 CODEOWNERS = ["@kbx81"]
 
 DEPENDENCIES = ["spi"]
+
+LOGGER = logging.getLogger(__name__)
 
 ST7789V = st7789v_ns.class_(
     "ST7789V", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
@@ -33,7 +40,9 @@ MODEL_PRESETS = "model_presets"
 REQUIRE_PS = "require_ps"
 
 
-def model_spec(require_ps=False, presets=None):
+def model_spec(
+    require_ps: bool = False, presets: dict[str, Any] | None = None
+) -> dict[str, Any]:
     if presets is None:
         presets = {}
     return {MODEL_PRESETS: presets, REQUIRE_PS: require_ps}
@@ -44,8 +53,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 240,
             CONF_WIDTH: 135,
-            CONF_OFFSET_HEIGHT: 52,
-            CONF_OFFSET_WIDTH: 40,
+            CONF_OFFSET_HEIGHT: 40,
+            CONF_OFFSET_WIDTH: 52,
             CONF_CS_PIN: "GPIO5",
             CONF_DC_PIN: "GPIO16",
             CONF_RESET_PIN: "GPIO23",
@@ -67,8 +76,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 280,
             CONF_WIDTH: 240,
-            CONF_OFFSET_HEIGHT: 0,
-            CONF_OFFSET_WIDTH: 20,
+            CONF_OFFSET_HEIGHT: 20,
+            CONF_OFFSET_WIDTH: 0,
         }
     ),
     "ADAFRUIT_S2_TFT_FEATHER_240X135": model_spec(
@@ -76,8 +85,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 240,
             CONF_WIDTH: 135,
-            CONF_OFFSET_HEIGHT: 52,
-            CONF_OFFSET_WIDTH: 40,
+            CONF_OFFSET_HEIGHT: 40,
+            CONF_OFFSET_WIDTH: 52,
             CONF_CS_PIN: "GPIO7",
             CONF_DC_PIN: "GPIO39",
             CONF_RESET_PIN: "GPIO40",
@@ -88,8 +97,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 320,
             CONF_WIDTH: 170,
-            CONF_OFFSET_HEIGHT: 35,
-            CONF_OFFSET_WIDTH: 0,
+            CONF_OFFSET_HEIGHT: 0,
+            CONF_OFFSET_WIDTH: 35,
             CONF_ROTATION: 270,
             CONF_CS_PIN: "GPIO10",
             CONF_DC_PIN: "GPIO13",
@@ -101,8 +110,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 320,
             CONF_WIDTH: 172,
-            CONF_OFFSET_HEIGHT: 34,
-            CONF_OFFSET_WIDTH: 0,
+            CONF_OFFSET_HEIGHT: 0,
+            CONF_OFFSET_WIDTH: 34,
             CONF_ROTATION: 90,
             CONF_CS_PIN: "GPIO21",
             CONF_DC_PIN: "GPIO22",
@@ -114,7 +123,7 @@ MODELS = {
 }
 
 
-def validate_st7789v(config):
+def validate_st7789v(config: ConfigType) -> ConfigType:
     model_data = MODELS[config[CONF_MODEL]]
     presets = model_data[MODEL_PRESETS]
     for key, value in presets.items():
@@ -126,7 +135,7 @@ def validate_st7789v(config):
 
     if model_data[REQUIRE_PS] and CONF_POWER_SUPPLY not in config:
         raise cv.Invalid(
-            f'{CONF_POWER_SUPPLY} must be specified when {CONF_MODEL} is {config[CONF_MODEL]}"'
+            f"{CONF_POWER_SUPPLY} must be specified when {CONF_MODEL} is {config[CONF_MODEL]}"
         )
 
     if (
@@ -168,11 +177,20 @@ CONFIG_SCHEMA = cv.All(
     validate_st7789v,
 )
 
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
+    "st7789v", require_miso=False, require_mosi=True
+)
 
-async def to_code(config):
+
+async def to_code(config: ConfigType) -> None:
+    # Remove before 2027.5.0
+    LOGGER.warning(
+        "The 'st7789v' component is deprecated and will be removed in ESPHome 2027.5.0, "
+        "migrate to 'mipi_spi' instead."
+    )
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     cg.add(var.set_model_str(config[CONF_MODEL]))
 

@@ -1,15 +1,20 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
+import logging
+
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ECHO_PIN,
-    CONF_TRIGGER_PIN,
     CONF_TIMEOUT,
+    CONF_TRIGGER_PIN,
+    ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
-    ICON_ARROW_EXPAND_VERTICAL,
 )
+from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_PULSE_TIME = "pulse_time"
 
@@ -28,7 +33,7 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.Required(CONF_TRIGGER_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CONF_TRIGGER_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_ECHO_PIN): pins.internal_gpio_input_pin_schema,
             cv.Optional(CONF_TIMEOUT, default="2m"): cv.distance,
             cv.Optional(
@@ -40,14 +45,11 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    trigger = await cg.gpio_pin_expression(config[CONF_TRIGGER_PIN])
-    cg.add(var.set_trigger_pin(trigger))
-    echo = await cg.gpio_pin_expression(config[CONF_ECHO_PIN])
-    cg.add(var.set_echo_pin(echo))
-
+    await cg.add_pin(var.set_trigger_pin, config[CONF_TRIGGER_PIN])
+    await cg.add_pin(var.set_echo_pin, config[CONF_ECHO_PIN])
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT] / (0.000343 / 2)))
     cg.add(var.set_pulse_time_us(config[CONF_PULSE_TIME]))

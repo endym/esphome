@@ -1,16 +1,15 @@
+from esphome import automation
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
+from esphome.const import CONF_COMPONENT_ID, CONF_ID, CONF_PAGE_ID, CONF_STATE
 
-from esphome.const import CONF_COMPONENT_ID, CONF_PAGE_ID, CONF_ID
-from .. import nextion_ns, CONF_NEXTION_ID
-
-
+from .. import CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION, nextion_ns
 from ..base_component import (
-    setup_component_core_,
-    CONFIG_BINARY_SENSOR_SCHEMA,
-    CONF_VARIABLE_NAME,
     CONF_COMPONENT_NAME,
+    CONF_VARIABLE_NAME,
+    CONFIG_BINARY_SENSOR_SCHEMA,
+    setup_component_core_,
 )
 
 CODEOWNERS = ["@senexcrenshaw"]
@@ -52,3 +51,26 @@ async def to_code(config):
     if CONF_COMPONENT_NAME in config or CONF_VARIABLE_NAME in config:
         await setup_component_core_(var, config, ".val")
         cg.add(hub.register_binarysensor_component(var))
+
+
+automation.register_apply_action(
+    "binary_sensor.nextion.publish",
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(NextionBinarySensor),
+            cv.Required(CONF_STATE): cv.templatable(cv.boolean),
+            cv.Optional(CONF_PUBLISH_STATE, default="true"): cv.templatable(cv.boolean),
+            cv.Optional(CONF_SEND_TO_NEXTION, default="true"): cv.templatable(
+                cv.boolean
+            ),
+        }
+    ),
+    automation.ApplyCall(
+        "set_state({}, {}, {})",
+        (
+            (CONF_STATE, cg.bool_),
+            (CONF_PUBLISH_STATE, cg.bool_),
+            (CONF_SEND_TO_NEXTION, cg.bool_),
+        ),
+    ),
+)

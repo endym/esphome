@@ -1,10 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import (
-    DEVICE_CLASS_CONNECTIVITY,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-)
+import esphome.config_validation as cv
+from esphome.const import DEVICE_CLASS_CONNECTIVITY, ENTITY_CATEGORY_DIAGNOSTIC
+
 from . import CONF_SIM800L_ID, Sim800LComponent
 
 DEPENDENCIES = ["sim800l"]
@@ -21,8 +19,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config):
-    sim800l_component = await cg.get_variable(config[CONF_SIM800L_ID])
+    hub = await cg.get_variable(config[CONF_SIM800L_ID])
 
-    if CONF_REGISTERED in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_REGISTERED])
-        cg.add(sim800l_component.set_registered_binary_sensor(sens))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_REGISTERED, hub.set_registered_binary_sensor)

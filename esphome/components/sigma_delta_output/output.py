@@ -1,13 +1,9 @@
 from esphome import automation, pins
+import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.const import (
-    CONF_ID,
-    CONF_PIN,
-    CONF_TURN_ON_ACTION,
-    CONF_TURN_OFF_ACTION,
-)
+from esphome.const import CONF_ID, CONF_PIN, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION
+from esphome.types import ConfigType
 
 DEPENDENCIES = []
 
@@ -42,14 +38,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await output.register_output(var, config)
 
-    if CONF_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_PIN])
-        cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config.get(CONF_PIN))
 
     if CONF_STATE_CHANGE_ACTION in config:
         await automation.build_automation(
